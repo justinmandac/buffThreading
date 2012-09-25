@@ -41,10 +41,11 @@ struct buffQueue *removeElems(struct buffQueue*s);
 struct buffQueue *bufferList; //will hold raw data
 struct buffQueue *fBufferList; //will hold filtered data
 struct datBuffer *dataAcc; //one buffer per sensor
+struct buffQueue *kBufferList;
 
 void *filtManager(); //loads data onto the filter
 void *streamManager(); //keeps on reading data from files. simulates sensor callbacks.
-
+void *kalmanManager();
 
 FILE *fInX;
 FILE *fInY;
@@ -58,6 +59,7 @@ int stopFlag;
 //figure i could just use flags for message passing but this may need the use of mutexes. still dunno
 //how :|
 int buffAddFlag = 0;
+int filtAddFlag = 0;
 pthread_t filtManager_t;
 pthread_t strmManager_t;
 static pthread_mutex_t buffMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -75,6 +77,7 @@ JNIEXPORT void JNICALL Java_com_buff_bThread_firBuff
 
     bufferList = newQueue();
     fBufferList = newQueue();
+    kBufferList = newQueue();
 
     if( (fInX = fopen("/sdcard/inputx.txt","r")) != NULL)
     	LOGI("inputx.txt lives!");
@@ -145,6 +148,8 @@ void *filtManager()
 			}
 			LOGI("ADDING TO FILTERED BUFFER QUEUE");
 			addBuff(fBufferList, ftmp);
+			//set flag to indicate that prefiltered data is available for the Kalman Filter.
+			filtAddFlag = 1;
 			//free(ftmp);
 			LOGI("SETTING INSAMP BACK TO TIME");
 
