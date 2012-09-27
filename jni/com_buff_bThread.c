@@ -32,7 +32,7 @@ struct buffQueue {
        struct datBuffer *tail;
 };
 
-struct datBuffer* pollBuff(struct buffQueue* s);
+struct datBuffer *pollBuff(struct buffQueue* s);
 struct buffQueue *addBuff(struct buffQueue* s, struct datBuffer* p);
 struct buffQueue *newQueue(void);
 struct buffQueue *freeQueue(struct buffQueue*s);
@@ -66,10 +66,10 @@ short filtAddFlag = 0;
 pthread_t filtManager_t;
 pthread_t strmManager_t;
 
-static pthread_mutex_t preFilt_Mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t preFilt_Mutex    = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t kalmanDone_Mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t buffMutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t kalmanMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t buffMutex        = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t kalmanMutex      = PTHREAD_MUTEX_INITIALIZER;
 
 
 JNIEXPORT void JNICALL Java_com_buff_bThread_firBuff
@@ -105,12 +105,38 @@ JNIEXPORT void JNICALL Java_com_buff_bThread_firBuff
 void *kalmanManager()
 {
 	struct datBuffer *tmp;
+	double xX_est_last = 0;
+	double xY_est_last = 0;
+	double xZ_est_last = 0;
+	//process noise
+	double P_last = 0;
+	double Q = 0.22;
+	double R = 0.617;
+	//kalman gains for each axis
+	double K_X;
+	double K_Y;
+	double K_Z;
+	double P;
+	double xX_temp_est;
+	double xY_temp_est;
+	double xZ_temp_est;
+	//state estimates for each axis
+	double xX_est;
+	double xY_est;
+	double xZ_est;
+	double zX_measured;
+	double zY_measured;
+	double zZ_measured;
 
-	while(1)
+	while(!kalmanDone)
 	{
 		if(filtAddFlag)
 		{
+			tmp = pollBuff(fBufferList);
 
+
+
+			filtAddFlag = 0;
 		}
 		else
 		{
@@ -132,7 +158,7 @@ void *filtManager()
 	int k;
 
 	//replace with flags in actual implementation
-	while(!feof(fInX) && !feof(fInY) && !feof(fInZ))
+	while(!preFiltDone)
 	{	//filtering routine
 		if(buffAddFlag)
 		{
