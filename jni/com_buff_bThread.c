@@ -41,11 +41,11 @@ struct buffQueue *removeElems(struct buffQueue*s);
 struct buffQueue *bufferList; //will hold raw data
 struct buffQueue *fBufferList; //will hold filtered data
 struct datBuffer *dataAcc; //one buffer per sensor
-struct buffQueue *kBufferList;
+struct buffQueue *kBufferList; //will hold data process by KF
 
 void *filtManager(); //loads data onto the filter
 void *streamManager(); //keeps on reading data from files. simulates sensor callbacks.
-void *kalmanManager();
+void *kalmanManager(); //loads prefiltered data into the Kalman filter.
 
 FILE *fInX;
 FILE *fInY;
@@ -55,20 +55,25 @@ double insampX[BUFF_LEN];
 double insampY[BUFF_LEN];
 double insampZ[BUFF_LEN];
 
-int stopFlag;
-//figure i could just use flags for message passing but this may need the use of mutexes. still dunno
-//how :|
-int buffAddFlag = 0;
-int filtAddFlag = 0;
+//flags
+short sensAcqDone = 0;
+short preFiltDone = 0;
+short kalmanDone  = 0;
+
+short buffAddFlag = 0;
+short filtAddFlag = 0;
+
 pthread_t filtManager_t;
 pthread_t strmManager_t;
+
+static pthread_mutex_t preFilt_Mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t kalmanDone_Mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t buffMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t kalmanMutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 JNIEXPORT void JNICALL Java_com_buff_bThread_firBuff
   (JNIEnv *env , jclass class){
-
-    struct buffQueue *list;
-    struct datBuffer *buff;
     //intitalize stuff
 
     memset(insampX,0,sizeof(insampX));
@@ -90,11 +95,30 @@ JNIEXPORT void JNICALL Java_com_buff_bThread_firBuff
     pthread_create(&strmManager_t,NULL,streamManager,NULL);
     pthread_create(&filtManager_t,NULL,filtManager,NULL);
 
+    freeQueue(kBufferList);
     freeQueue(bufferList);
     freeQueue(fBufferList);
     free(fBufferList);
     free(bufferList);
 }
+
+void *kalmanManager()
+{
+	struct datBuffer *tmp;
+
+	while(1)
+	{
+		if(filtAddFlag)
+		{
+
+		}
+		else
+		{
+			usleep(10);
+		}
+	}
+}
+
 void *filtManager()
 {
 	struct datBuffer *ftmp;
@@ -107,24 +131,22 @@ void *filtManager()
 	int n;
 	int k;
 
+	//replace with flags in actual implementation
 	while(!feof(fInX) && !feof(fInY) && !feof(fInZ))
-	{
-
-		//filtering routine
+	{	//filtering routine
 		if(buffAddFlag)
 		{
 			LOGI("HELLO THIS IS NEW");
 			pthread_mutex_lock(&buffMutex);
 			buffAddFlag = 0;
 			pthread_mutex_unlock(&buffMutex);
-
+			//poll queue of read sensor values
 			tmp = pollBuff(bufferList);
 
 			memcpy(&insampX[FLT_ORD + 1 ],tmp->buffDat.inX,SAMPLES*sizeof(double));
 			memcpy(&insampY[FLT_ORD + 1 ],tmp->buffDat.inY,SAMPLES*sizeof(double));
 			memcpy(&insampZ[FLT_ORD + 1 ],tmp->buffDat.inZ,SAMPLES*sizeof(double));
 			//retrieve head element in queue
-
 
 			for(n = 0; n < SAMPLES; n++)
 			{
@@ -231,6 +253,7 @@ void *filtManager()
 
 		pthread_mutex_unlock(&buffMutex);
 	 }
+	 sensAcqDone = 1;
 	 LOGI("Closing files...");
 	 fclose(fInX);
 	 fclose(fInY);
@@ -241,7 +264,6 @@ void *filtManager()
  struct datBuffer* pollBuff(struct buffQueue* s)
  {
         struct datBuffer *tmp;
-
         if(s == NULL)
         {
              LOGI("Queue is not initialized.");
@@ -264,7 +286,6 @@ void *filtManager()
         return tmp;
 
  }
-
  struct buffQueue *newQueue(void){
         struct buffQueue* p = malloc(sizeof(p));
 
@@ -274,7 +295,6 @@ void *filtManager()
  }
 
  struct buffQueue *addBuff(struct buffQueue *s, struct datBuffer *dat){
-
          dat->next = NULL;
 
           if ( s->head == NULL )
