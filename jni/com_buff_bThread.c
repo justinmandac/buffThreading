@@ -127,6 +127,7 @@ void *kalmanManager()
 	double zX_measured;
 	double zY_measured;
 	double zZ_measured;
+	short count;
 
 	while(!kalmanDone)
 	{
@@ -134,6 +135,17 @@ void *kalmanManager()
 		{
 			tmp = pollBuff(fBufferList);
 
+			xX_est_last = tmp->buffDat.inX[0];
+			xY_est_last = tmp->buffDat.inY[0];
+			xZ_est_last = tmp->buffDat.inZ[0];
+
+			//measure then filter
+			for(count = 0 ; count < MAX_IN_LEN; count++)
+			{
+				//get measurement
+				xX_temp_est = xX_est_last;
+
+			}
 
 
 			filtAddFlag = 0;
